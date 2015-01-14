@@ -39,12 +39,8 @@ module.exports = Range.extend({
     },
 
     /** Sets a new array of items in the block. */
-    setItems : function(position, startIndex, items) {
-        return this._setAll({
-            'pos' : position,
-            'idx' : startIndex,
-            'itms' : items || []
-        });
+    setItems : function(items) {
+        return this._set('itms', items || []);
     },
 
 });

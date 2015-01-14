@@ -60,20 +60,18 @@ module.exports = Mosaic.Class.extend(Mosaic.Events.prototype, {
             listProgress = (progress * len - startIdx) / listSize;
             return that._loadItems(listIndex, listSize);
         }).then(function(items) {
-            var listLength = 0;
-            _.each(items, function(item) {
-                listLength += item.getLength();
-            });
+            that.list.setItems(items);
+            var listLength = that.list.getLength();
             var updated;
             if (listIndex == 0 && items.length >= len && //
             listLength < scrollLen) {
                 that.placeholder.setLength(scrollLen);
                 that.scroll.setPositionAndLength(0, scrollLen);
-                updated = that.list.setItems(0, 0, items);
+                updated = that.list.setPositionAndLength(0, 0);
             } else {
                 var listShift = listProgress * listLength;
                 var listPos = Math.round(scrollPos - listShift);
-                updated = that.list.setItems(listPos, listIndex, items);
+                updated = that.list.setPositionAndLength(listPos, listIndex);
             }
             if (updated) {
                 that.fire('updated');
