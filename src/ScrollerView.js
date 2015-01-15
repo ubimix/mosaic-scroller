@@ -40,8 +40,6 @@ module.exports = React.createClass({
     },
     componentDidMount : function(nextProps) {
         this._finishRendering();
-        var index = this.props.index || 0;
-        this.manager.scrollToItem(index);
     },
     componentDidUpdate : function(nextProps) {
         this._finishRendering();
@@ -118,6 +116,8 @@ module.exports = React.createClass({
             };
             deferred.resolve(result);
         }
+        var index = this.props.index || 0;
+        this.manager.scrollToItem(index);
     },
 
 });
