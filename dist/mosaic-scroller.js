@@ -1,5 +1,5 @@
 /*!
- * mosaic-scroller v0.0.5 | License: MIT 
+ * mosaic-scroller v0.0.6 | License: MIT 
  * 
  */
 (function webpackUniversalModuleDefinition(root, factory) {
@@ -267,8 +267,6 @@ return /******/ (function(modules) { // webpackBootstrap
 	    },
 	    componentDidMount : function(nextProps) {
 	        this._finishRendering();
-	        var index = this.props.index || 0;
-	        this.manager.scrollToItem(index);
 	    },
 	    componentDidUpdate : function(nextProps) {
 	        this._finishRendering();
@@ -345,6 +343,8 @@ return /******/ (function(modules) { // webpackBootstrap
 	            };
 	            deferred.resolve(result);
 	        }
+	        var index = this.props.index || 0;
+	        this.manager.scrollToItem(index);
 	    },
 	
 	});
