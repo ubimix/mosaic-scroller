@@ -11,7 +11,7 @@
 		exports["mosaic-scroller"] = factory(require("underscore"), require("mosaic-commons"), require("react"));
 	else
 		root["mosaic-scroller"] = factory(root["underscore"], root["mosaic-commons"], root["react"]);
-})(this, function(__WEBPACK_EXTERNAL_MODULE_5__, __WEBPACK_EXTERNAL_MODULE_6__, __WEBPACK_EXTERNAL_MODULE_7__) {
+})(this, function(__WEBPACK_EXTERNAL_MODULE_3__, __WEBPACK_EXTERNAL_MODULE_4__, __WEBPACK_EXTERNAL_MODULE_5__) {
 return /******/ (function(modules) { // webpackBootstrap
 /******/ 	// The module cache
 /******/ 	var installedModules = {};
@@ -59,10 +59,8 @@ return /******/ (function(modules) { // webpackBootstrap
 /***/ function(module, exports, __webpack_require__) {
 
 	module.exports = {
-	    ItemsList : __webpack_require__(1),
-	    Range : __webpack_require__(2),
-	    Scroller : __webpack_require__(3),
-	    ScrollerView : __webpack_require__(4)
+	    Scroller : __webpack_require__(1),
+	    ScrollerView : __webpack_require__(2)
 	};
 
 
@@ -70,165 +68,63 @@ return /******/ (function(modules) { // webpackBootstrap
 /* 1 */
 /***/ function(module, exports, __webpack_require__) {
 
-	var _ = __webpack_require__(5);
-	var Mosaic = __webpack_require__(6);
-	var Range = __webpack_require__(2);
-	
-	module.exports = Range.extend({
-	
-	    /** Returns the length of this block. */
-	    getLength : function() {
-	        var len = 0;
-	        var items = this.getItems();
-	        _.each(items, function(item) {
-	            len += item.getLength();
-	        });
-	        return len;
-	    },
-	
-	    /**
-	     * Returns the number of items in the block.
-	     */
-	    getItemsNumber : function() {
-	        var items = this.getItems();
-	        return items.length;
-	    },
-	
-	    /** Returns all items in this block. */
-	    getItems : function() {
-	        return this._get('itms') || [];
-	    },
-	
-	    /** Returns the start index of the first list item. */
-	    getStartIndex : function() {
-	        return this._get('idx') || 0;
-	    },
-	
-	    getEndIndex : function() {
-	        var from = this.getStartIndex();
-	        var items = this.getItems();
-	        return from + items.length;
-	    },
-	
-	    /** Sets a new array of items in the block. */
-	    setItems : function(items) {
-	        return this._set('itms', items || []);
-	    },
-	
-	});
-
-
-/***/ },
-/* 2 */
-/***/ function(module, exports, __webpack_require__) {
-
-	var _ = __webpack_require__(5);
-	var Mosaic = __webpack_require__(6);
-	
-	module.exports = Mosaic.Class.extend(Mosaic.Events.prototype, {
-	
-	    initialize : function(options) {
-	        this.setOptions(options);
-	    },
-	    _setAll : function(obj) {
-	        var updated = false;
-	        _.each(obj, function(value, key) {
-	            updated |= !this._equal(value, this.options[key]);
-	            this.options[key] = value;
-	        }, this);
-	        return this._notify(updated);
-	    },
-	    _set : function(key, value) {
-	        var updated = !this._equal(value, this.options[key]);
-	        this.options[key] = value;
-	        return this._notify(updated);
-	    },
-	    _get : function(key) {
-	        return this.options[key];
-	    },
-	    _equal : function(first, second) {
-	        return first == second;
-	    },
-	    _notify : function(updated) {
-	        if (updated) {
-	            this.fire('updated');
-	        }
-	        return updated;
-	    },
-	    setLength : function(value) {
-	        return this._set('len', value || 0);
-	    },
-	
-	    getLength : function(value) {
-	        return this._get('len');
-	    },
-	
-	    setPosition : function(value) {
-	        return this._set('pos', value || 0);
-	    },
-	    getPosition : function(value) {
-	        return this._get('pos');
-	    },
-	    setPositionAndLength : function(pos, len) {
-	        return this._setAll({
-	            'pos' : pos,
-	            'len' : len
-	        });
-	    }
-	
-	});
-
-
-/***/ },
-/* 3 */
-/***/ function(module, exports, __webpack_require__) {
-
-	var _ = __webpack_require__(5);
-	var Mosaic = __webpack_require__(6);
-	var Range = __webpack_require__(2);
-	var ItemsList = __webpack_require__(1);
+	var _ = __webpack_require__(3);
+	var Mosaic = __webpack_require__(4);
 	
 	module.exports = Mosaic.Class.extend(Mosaic.Events.prototype, {
 	    initialize : function(options) {
 	        this.setOptions(options);
-	        this.list = new ItemsList(options);
-	        this.scroll = new Range(options);
-	        this.placeholder = new Range(options);
+	        this._scrollPosition = 0;
+	        this._scrollLength = 0;
+	        this._placeholderLength = 0;
 	    },
 	
-	    getLength : function() {
-	        return this.placeholder.getLength();
+	    getPlaceholderLength : function() {
+	        return this._placeholderLength;
 	    },
 	
-	    setScroll : function(scrollPos, scrollLen) {
+	    getScrollLength : function() {
+	        return this._scrollLength;
+	    },
+	
+	    setScrollLength : function(len) {
+	        this._scrollLength = len || 1;
+	    },
+	
+	    getScrollPosition : function() {
+	        return this._scrollPosition;
+	    },
+	
+	    updateScrollPosition : function(scrollPos) {
 	        var that = this;
 	        return that._handle(function(len) {
 	            var fullScrollerLen = that._getFullScrollerLen(len);
 	            var progress = scrollPos / fullScrollerLen;
 	            progress = Math.max(0.0, Math.min(1.0, progress));
-	            return that._updateScrollPosition(len, progress, scrollLen);
+	            return that._updateScrollPosition(len, progress, -1);
 	        });
 	    },
 	
-	    focusItem : function(index, scrollLen) {
+	    scrollToItem : function(index) {
 	        var that = this;
 	        return that._handle(function(len) {
 	            index = index || 0;
 	            var progress = len ? index / len : 0;
 	            progress = Math.max(0.0, Math.min(1.0, progress));
-	            return that._updateScrollPosition(len, progress, scrollLen);
+	            return that._updateScrollPosition(len, progress, index);
 	        });
 	    },
 	
-	    _updateScrollPosition : function(len, progress, scrollLen) {
+	    _updateScrollPosition : function(len, progress, focused) {
 	        var that = this;
 	        var listProgress = 0;
 	        var listIndex = 0;
 	        var fullScrollerLen = that._getFullScrollerLen(len);
 	        var scrollPos = Math.round(fullScrollerLen * progress);
+	        var scrollLen = that.getScrollLength();
 	        return Mosaic.P.then(function() {
-	            that.placeholder.setLength(fullScrollerLen + scrollLen);
-	            that.scroll.setPositionAndLength(scrollPos, scrollLen);
+	            that._placeholderLength = fullScrollerLen + scrollLen;
+	            that._scrollPosition = scrollPos;
 	
 	            var itemId = Math.floor(progress * len);
 	            itemId = Math.max(0, Math.min(len - 1, itemId));
@@ -243,24 +139,29 @@ return /******/ (function(modules) { // webpackBootstrap
 	            listIndex = startIdx;
 	            var listSize = endIdx - startIdx;
 	            listProgress = (progress * len - startIdx) / listSize;
-	            return that._loadItems(listIndex, listSize);
-	        }).then(function(items) {
-	            that.list.setItems(items);
-	            var listLength = that.list.getLength();
-	            var updated;
-	            if (listIndex == 0 && items.length >= len && //
-	            listLength < scrollLen) {
-	                that.placeholder.setLength(scrollLen);
-	                that.scroll.setPositionAndLength(0, scrollLen);
-	                updated = that.list.setPositionAndLength(0, 0);
+	            return that.options.renderItems({
+	                index : listIndex,
+	                length : listSize,
+	                focused : focused
+	            });
+	        }).then(function(info) {
+	            var listLength = info.length;
+	            var size = info.size;
+	            var itemsPosition = 0;
+	            if (listIndex == 0 && size >= len && listLength < scrollLen) {
+	                that._placeholderLength = scrollLen;
+	                that._scrollPosition = 0;
 	            } else {
-	                var listShift = listProgress * listLength;
-	                var listPos = Math.round(scrollPos - listShift);
-	                updated = that.list.setPositionAndLength(listPos, listIndex);
+	                var listShift = info.shift;
+	                if (listShift === undefined || listShift < 0) {
+	                    listShift = listProgress * listLength;
+	                }
+	                itemsPosition = Math.round(scrollPos - listShift);
 	            }
-	            if (updated) {
-	                that.fire('updated');
-	            }
+	            return that.options.updateItemsPosition({
+	                index : listIndex,
+	                position : itemsPosition
+	            });
 	        });
 	    },
 	
@@ -299,91 +200,82 @@ return /******/ (function(modules) { // webpackBootstrap
 	
 	    _handle : function(action) {
 	        var that = this;
-	        return Mosaic.P.then(function() {
-	            if (that._handling) {
-	                return;
-	            }
-	            that._handling = true;
-	            return that._load('__loadlength', function() {
+	        if (!that._handling) {
+	            that._handling = Mosaic.P.then(function() {
 	                var len = that.options.getItemsNumber;
 	                if (_.isFunction(len)) {
 	                    len = len();
 	                }
 	                return len;
 	            }).then(action).then(function(result) {
-	                that._handling = false;
+	                delete that._handling;
 	                return result;
 	            }, function(err) {
-	                that._handling = false;
+	                delete that._handling;
 	                throw err;
 	            });
-	        });
-	    },
-	
-	    /**
-	     * Loads items using the "load" method specified in the class options and
-	     * returns a promise with results.
-	     */
-	    _loadItems : function(idx, len) {
-	        return this._load('__loadItems', function() {
-	            return this.options.loadItems({
-	                index : idx,
-	                length : len
-	            });
-	        });
-	    },
-	
-	    _load : function(key, action) {
-	        var that = this;
-	        if (that[key]) {
-	            that[key].reject('Interrupted');
 	        }
-	        var deferred = that[key] = Mosaic.P.defer();
-	        Mosaic.P.then(function() {
-	            return action.apply(that);
-	        }).then(deferred.resolve, deferred.reject);
-	        return deferred.promise.then(function(result) {
-	            delete that[key];
-	            return result;
-	        }, function(err) {
-	            delete that[key];
-	            throw err;
-	        });
+	        return that._handling;
 	    },
 	
 	});
 
 
 /***/ },
-/* 4 */
+/* 2 */
 /***/ function(module, exports, __webpack_require__) {
 
-	var _ = __webpack_require__(5);
-	var React = __webpack_require__(7);
-	var Scroller = __webpack_require__(3);
+	var _ = __webpack_require__(3);
+	var React = __webpack_require__(5);
+	var Scroller = __webpack_require__(1);
+	var Mosaic = __webpack_require__(4);
 	
 	module.exports = React.createClass({
 	    getInitialState : function() {
-	        this.manager = new Scroller(this.props);
-	        this.manager.on('updated', this._onUpdate, this);
-	        return this._newState();
+	        var that = this;
+	        this.manager = new Scroller({
+	            getItemsNumber : this.props.getItemsNumber,
+	            renderItems : function(options) {
+	                return Mosaic.P.then(function() {
+	                    return that.props.renderItems(options);
+	                }).then(function(items) {
+	                    var deferred = Mosaic.P.defer();
+	                    options.deferred = deferred;
+	                    var index = options.index;
+	                    var length = options.length;
+	                    var state = _.extend({}, options, {
+	                        items : items,
+	                        deferred : deferred
+	                    });
+	                    that.setState(that._newState(state));
+	                    return deferred.promise;
+	                });
+	            },
+	            updateItemsPosition : function(options) {
+	                var itemsBlock = that.refs.items;
+	                var div = itemsBlock.getDOMNode();
+	                var position = options.position;
+	                div.style.top = position + 'px';
+	            }
+	        });
+	        return this._newState({
+	            items : [],
+	            index : 0,
+	            length : 0,
+	            deferred : undefined
+	        });
 	    },
 	    componentDidMount : function(nextProps) {
-	        this._updateScrollPos();
+	        this._finishRendering();
+	        var index = this.props.index || 0;
+	        this.manager.scrollToItem(index);
 	    },
 	    componentDidUpdate : function(nextProps) {
-	        this._updateScrollPos();
+	        this._finishRendering();
 	    },
 	    render : function() {
-	        var scroll = this.manager.scroll;
-	        var list = this.manager.list;
-	        var scrollPos = scroll.getPosition();
-	        var scrollLen = scroll.getLength();
-	        var listPos = list.getPosition();
-	        var listLen = list.getLength();
-	
-	        var items = this._renderItems();
-	        var placeholder = this.manager.placeholder;
+	        var items = this.state.items;
+	        var placeholderLength = this.manager.getPlaceholderLength();
 	        var style = _.extend({}, this.props.style, {
 	            overflowY : 'auto',
 	            overflowX : 'hidden'
@@ -396,69 +288,85 @@ return /******/ (function(modules) { // webpackBootstrap
 	        }, React.DOM.div({
 	            style : {
 	                position : 'relative',
-	                height : placeholder.getLength() + 'px'
+	                height : placeholderLength + 'px'
 	            }
 	        }, React.DOM.div({
+	            ref : 'items',
 	            style : {
 	                position : 'absolute',
-	                height : list.getLength() + 'px',
-	                top : list.getPosition() + 'px',
 	                left : '0px',
 	                right : '0px',
 	                bottom : 'auto'
 	            }
 	        }, items)));
 	    },
-	    _onUpdate : function() {
-	        this.setState(this._newState());
-	    },
 	    _newState : function(options) {
 	        return _.extend({}, this.state, options);
-	    },
-	    _renderItems : function() {
-	        var list = this.manager.list;
-	        var items = list.getItems();
-	        return this.props.renderItems({
-	            items : items,
-	            index : list.getStartIndex(),
-	            position : list.getPosition(),
-	            length : list.getLength()
-	        });
 	    },
 	    /** This handler is called when the scroller changes its position. */
 	    _onScroll : function(event) {
 	        var container = this.getDOMNode();
 	        var scrollPos = container.scrollTop;
-	        var height = container.offsetHeight;
-	        this.manager.setScroll(scrollPos, height);
+	        this.manager.updateScrollPosition(scrollPos);
 	    },
-	    _updateScrollPos : function() {
+	    _finishRendering : function() {
 	        var container = this.getDOMNode();
 	        var height = container.offsetHeight;
-	        var index = this.props.index || 0;
-	        this.manager.focusItem(index, height);
+	        this.manager.setScrollLength(height);
+	        var scrollPos = this.manager.getScrollPosition();
+	        container.scrollTop = scrollPos;
+	
+	        var deferred = this.state.deferred;
+	        if (deferred) {
+	            var itemsBlock = this.refs.items;
+	            var div = itemsBlock.getDOMNode();
+	            var length = div.offsetHeight;
+	
+	            var shift = -1;
+	            var index = this.state.index;
+	            var focused = this.state.focused;
+	            if (focused >= 0) {
+	                var child = div.firstChild;
+	                shift = -1;
+	                for (var i = index; child && i < focused; i++) {
+	                    var len = child.offsetHeight;
+	                    if (shift < 0) {
+	                        shift = len;
+	                    } else {
+	                        shift += len;
+	                    }
+	                    child = child.nextSibling;
+	                }
+	            }
+	            var result = {
+	                length : length,
+	                size : this.state.items.length,
+	                shift : shift
+	            };
+	            deferred.resolve(result);
+	        }
 	    },
 	
 	});
 
 
 /***/ },
+/* 3 */
+/***/ function(module, exports, __webpack_require__) {
+
+	module.exports = __WEBPACK_EXTERNAL_MODULE_3__;
+
+/***/ },
+/* 4 */
+/***/ function(module, exports, __webpack_require__) {
+
+	module.exports = __WEBPACK_EXTERNAL_MODULE_4__;
+
+/***/ },
 /* 5 */
 /***/ function(module, exports, __webpack_require__) {
 
 	module.exports = __WEBPACK_EXTERNAL_MODULE_5__;
-
-/***/ },
-/* 6 */
-/***/ function(module, exports, __webpack_require__) {
-
-	module.exports = __WEBPACK_EXTERNAL_MODULE_6__;
-
-/***/ },
-/* 7 */
-/***/ function(module, exports, __webpack_require__) {
-
-	module.exports = __WEBPACK_EXTERNAL_MODULE_7__;
 
 /***/ }
 /******/ ])

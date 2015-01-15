@@ -1,29 +1,54 @@
 var _ = require('underscore');
 var React = require('react');
 var Scroller = require('./Scroller');
+var Mosaic = require('mosaic-commons');
 
 module.exports = React.createClass({
     getInitialState : function() {
-        this.manager = new Scroller(this.props);
-        this.manager.on('updated', this._onUpdate, this);
-        return this._newState();
+        var that = this;
+        this.manager = new Scroller({
+            getItemsNumber : this.props.getItemsNumber,
+            renderItems : function(options) {
+                return Mosaic.P.then(function() {
+                    return that.props.renderItems(options);
+                }).then(function(items) {
+                    var deferred = Mosaic.P.defer();
+                    options.deferred = deferred;
+                    var index = options.index;
+                    var length = options.length;
+                    var state = _.extend({}, options, {
+                        items : items,
+                        deferred : deferred
+                    });
+                    that.setState(that._newState(state));
+                    return deferred.promise;
+                });
+            },
+            updateItemsPosition : function(options) {
+                var itemsBlock = that.refs.items;
+                var div = itemsBlock.getDOMNode();
+                var position = options.position;
+                div.style.top = position + 'px';
+            }
+        });
+        return this._newState({
+            items : [],
+            index : 0,
+            length : 0,
+            deferred : undefined
+        });
     },
     componentDidMount : function(nextProps) {
-        this._updateScrollPos();
+        this._finishRendering();
+        var index = this.props.index || 0;
+        this.manager.scrollToItem(index);
     },
     componentDidUpdate : function(nextProps) {
-        this._updateScrollPos();
+        this._finishRendering();
     },
     render : function() {
-        var scroll = this.manager.scroll;
-        var list = this.manager.list;
-        var scrollPos = scroll.getPosition();
-        var scrollLen = scroll.getLength();
-        var listPos = list.getPosition();
-        var listLen = list.getLength();
-
-        var items = this._renderItems();
-        var placeholder = this.manager.placeholder;
+        var items = this.state.items;
+        var placeholderLength = this.manager.getPlaceholderLength();
         var style = _.extend({}, this.props.style, {
             overflowY : 'auto',
             overflowX : 'hidden'
@@ -36,47 +61,63 @@ module.exports = React.createClass({
         }, React.DOM.div({
             style : {
                 position : 'relative',
-                height : placeholder.getLength() + 'px'
+                height : placeholderLength + 'px'
             }
         }, React.DOM.div({
+            ref : 'items',
             style : {
                 position : 'absolute',
-                height : list.getLength() + 'px',
-                top : list.getPosition() + 'px',
                 left : '0px',
                 right : '0px',
                 bottom : 'auto'
             }
         }, items)));
     },
-    _onUpdate : function() {
-        this.setState(this._newState());
-    },
     _newState : function(options) {
         return _.extend({}, this.state, options);
-    },
-    _renderItems : function() {
-        var list = this.manager.list;
-        var items = list.getItems();
-        return this.props.renderItems({
-            items : items,
-            index : list.getStartIndex(),
-            position : list.getPosition(),
-            length : list.getLength()
-        });
     },
     /** This handler is called when the scroller changes its position. */
     _onScroll : function(event) {
         var container = this.getDOMNode();
         var scrollPos = container.scrollTop;
-        var height = container.offsetHeight;
-        this.manager.setScroll(scrollPos, height);
+        this.manager.updateScrollPosition(scrollPos);
     },
-    _updateScrollPos : function() {
+    _finishRendering : function() {
         var container = this.getDOMNode();
         var height = container.offsetHeight;
-        var index = this.props.index || 0;
-        this.manager.focusItem(index, height);
+        this.manager.setScrollLength(height);
+        var scrollPos = this.manager.getScrollPosition();
+        container.scrollTop = scrollPos;
+
+        var deferred = this.state.deferred;
+        if (deferred) {
+            var itemsBlock = this.refs.items;
+            var div = itemsBlock.getDOMNode();
+            var length = div.offsetHeight;
+
+            var shift = -1;
+            var index = this.state.index;
+            var focused = this.state.focused;
+            if (focused >= 0) {
+                var child = div.firstChild;
+                shift = -1;
+                for (var i = index; child && i < focused; i++) {
+                    var len = child.offsetHeight;
+                    if (shift < 0) {
+                        shift = len;
+                    } else {
+                        shift += len;
+                    }
+                    child = child.nextSibling;
+                }
+            }
+            var result = {
+                length : length,
+                size : this.state.items.length,
+                shift : shift
+            };
+            deferred.resolve(result);
+        }
     },
 
 });

@@ -1,49 +1,60 @@
 var _ = require('underscore');
 var Mosaic = require('mosaic-commons');
-var Range = require('./Range');
-var ItemsList = require('./ItemsList');
 
 module.exports = Mosaic.Class.extend(Mosaic.Events.prototype, {
     initialize : function(options) {
         this.setOptions(options);
-        this.list = new ItemsList(options);
-        this.scroll = new Range(options);
-        this.placeholder = new Range(options);
+        this._scrollPosition = 0;
+        this._scrollLength = 0;
+        this._placeholderLength = 0;
     },
 
-    getLength : function() {
-        return this.placeholder.getLength();
+    getPlaceholderLength : function() {
+        return this._placeholderLength;
     },
 
-    setScroll : function(scrollPos, scrollLen) {
+    getScrollLength : function() {
+        return this._scrollLength;
+    },
+
+    setScrollLength : function(len) {
+        this._scrollLength = len || 1;
+    },
+
+    getScrollPosition : function() {
+        return this._scrollPosition;
+    },
+
+    updateScrollPosition : function(scrollPos) {
         var that = this;
         return that._handle(function(len) {
             var fullScrollerLen = that._getFullScrollerLen(len);
             var progress = scrollPos / fullScrollerLen;
             progress = Math.max(0.0, Math.min(1.0, progress));
-            return that._updateScrollPosition(len, progress, scrollLen);
+            return that._updateScrollPosition(len, progress, -1);
         });
     },
 
-    focusItem : function(index, scrollLen) {
+    scrollToItem : function(index) {
         var that = this;
         return that._handle(function(len) {
             index = index || 0;
             var progress = len ? index / len : 0;
             progress = Math.max(0.0, Math.min(1.0, progress));
-            return that._updateScrollPosition(len, progress, scrollLen);
+            return that._updateScrollPosition(len, progress, index);
         });
     },
 
-    _updateScrollPosition : function(len, progress, scrollLen) {
+    _updateScrollPosition : function(len, progress, focused) {
         var that = this;
         var listProgress = 0;
         var listIndex = 0;
         var fullScrollerLen = that._getFullScrollerLen(len);
         var scrollPos = Math.round(fullScrollerLen * progress);
+        var scrollLen = that.getScrollLength();
         return Mosaic.P.then(function() {
-            that.placeholder.setLength(fullScrollerLen + scrollLen);
-            that.scroll.setPositionAndLength(scrollPos, scrollLen);
+            that._placeholderLength = fullScrollerLen + scrollLen;
+            that._scrollPosition = scrollPos;
 
             var itemId = Math.floor(progress * len);
             itemId = Math.max(0, Math.min(len - 1, itemId));
@@ -58,24 +69,29 @@ module.exports = Mosaic.Class.extend(Mosaic.Events.prototype, {
             listIndex = startIdx;
             var listSize = endIdx - startIdx;
             listProgress = (progress * len - startIdx) / listSize;
-            return that._loadItems(listIndex, listSize);
-        }).then(function(items) {
-            that.list.setItems(items);
-            var listLength = that.list.getLength();
-            var updated;
-            if (listIndex == 0 && items.length >= len && //
-            listLength < scrollLen) {
-                that.placeholder.setLength(scrollLen);
-                that.scroll.setPositionAndLength(0, scrollLen);
-                updated = that.list.setPositionAndLength(0, 0);
+            return that.options.renderItems({
+                index : listIndex,
+                length : listSize,
+                focused : focused
+            });
+        }).then(function(info) {
+            var listLength = info.length;
+            var size = info.size;
+            var itemsPosition = 0;
+            if (listIndex == 0 && size >= len && listLength < scrollLen) {
+                that._placeholderLength = scrollLen;
+                that._scrollPosition = 0;
             } else {
-                var listShift = listProgress * listLength;
-                var listPos = Math.round(scrollPos - listShift);
-                updated = that.list.setPositionAndLength(listPos, listIndex);
+                var listShift = info.shift;
+                if (listShift === undefined || listShift < 0) {
+                    listShift = listProgress * listLength;
+                }
+                itemsPosition = Math.round(scrollPos - listShift);
             }
-            if (updated) {
-                that.fire('updated');
-            }
+            return that.options.updateItemsPosition({
+                index : listIndex,
+                position : itemsPosition
+            });
         });
     },
 
@@ -114,56 +130,22 @@ module.exports = Mosaic.Class.extend(Mosaic.Events.prototype, {
 
     _handle : function(action) {
         var that = this;
-        return Mosaic.P.then(function() {
-            if (that._handling) {
-                return;
-            }
-            that._handling = true;
-            return that._load('__loadlength', function() {
+        if (!that._handling) {
+            that._handling = Mosaic.P.then(function() {
                 var len = that.options.getItemsNumber;
                 if (_.isFunction(len)) {
                     len = len();
                 }
                 return len;
             }).then(action).then(function(result) {
-                that._handling = false;
+                delete that._handling;
                 return result;
             }, function(err) {
-                that._handling = false;
+                delete that._handling;
                 throw err;
             });
-        });
-    },
-
-    /**
-     * Loads items using the "load" method specified in the class options and
-     * returns a promise with results.
-     */
-    _loadItems : function(idx, len) {
-        return this._load('__loadItems', function() {
-            return this.options.loadItems({
-                index : idx,
-                length : len
-            });
-        });
-    },
-
-    _load : function(key, action) {
-        var that = this;
-        if (that[key]) {
-            that[key].reject('Interrupted');
         }
-        var deferred = that[key] = Mosaic.P.defer();
-        Mosaic.P.then(function() {
-            return action.apply(that);
-        }).then(deferred.resolve, deferred.reject);
-        return deferred.promise.then(function(result) {
-            delete that[key];
-            return result;
-        }, function(err) {
-            delete that[key];
-            throw err;
-        });
+        return that._handling;
     },
 
 });
