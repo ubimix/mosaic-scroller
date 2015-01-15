@@ -76,6 +76,8 @@ module.exports = React.createClass({
     },
     /** This handler is called when the scroller changes its position. */
     _onScroll : function(event) {
+        if (this._handling)
+            return;
         var container = this.getDOMNode();
         var scrollPos = container.scrollTop;
         this.manager.updateScrollPosition(scrollPos);
@@ -84,8 +86,6 @@ module.exports = React.createClass({
         var container = this.getDOMNode();
         var height = container.offsetHeight;
         this.manager.setScrollLength(height);
-        var scrollPos = this.manager.getScrollPosition();
-        container.scrollTop = scrollPos;
 
         var deferred = this.state.deferred;
         if (deferred) {
@@ -114,10 +114,18 @@ module.exports = React.createClass({
                 size : this.state.items.length,
                 shift : shift
             };
+            var scrollPos = this.manager.getScrollPosition();
+            container.scrollTop = scrollPos;
             deferred.resolve(result);
         }
         var index = this.props.index || 0;
-        this.manager.scrollToItem(index);
+        var that = this;
+        that._handling = true;
+        this.manager.scrollToItem(index).then(function() {
+            setTimeout(function() {
+                that._handling = false;
+            }, 10);
+        });
     },
 
 });
