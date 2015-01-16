@@ -1,5 +1,5 @@
 /*!
- * mosaic-scroller v0.0.7 | License: MIT 
+ * mosaic-scroller v0.0.8 | License: MIT 
  * 
  */
 (function webpackUniversalModuleDefinition(root, factory) {
@@ -303,8 +303,6 @@ return /******/ (function(modules) { // webpackBootstrap
 	    },
 	    /** This handler is called when the scroller changes its position. */
 	    _onScroll : function(event) {
-	        if (this._handling)
-	            return;
 	        var container = this.getDOMNode();
 	        var scrollPos = container.scrollTop;
 	        this.manager.updateScrollPosition(scrollPos);
@@ -347,12 +345,7 @@ return /******/ (function(modules) { // webpackBootstrap
 	        }
 	        var index = this.props.index || 0;
 	        var that = this;
-	        that._handling = true;
-	        this.manager.scrollToItem(index).then(function() {
-	            setTimeout(function() {
-	                that._handling = false;
-	            }, 10);
-	        });
+	        this.manager.scrollToItem(index);
 	    },
 	
 	});
