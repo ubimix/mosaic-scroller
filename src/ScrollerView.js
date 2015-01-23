@@ -4,20 +4,27 @@ var Mosaic = require('mosaic-commons');
 
 module.exports = React.createClass({
     componentWillMount : function() {
-        this._itemShiftIndex = this.props.index || 0;
-        this._itemShift = 0;
+        this._resetFields(this.props);
     },
     componentDidMount : function() {
         this._updatePositions();
         this._checkItemList();
     },
     componentWillReceiveProps : function(props) {
-        this._itemShiftIndex = props.index || 0;
-        this._itemShift = 0;
+        this._resetFields(props);
     },
     componentDidUpdate : function() {
         this._updatePositions();
         this._checkItemList();
+    },
+    _resetFields : function(props) {
+        this.items = [];
+        var blockSize = this._getBlockSize();
+        var index = props.index || 0;
+        this._firstIndex = Math.max(0, Math.floor(index / blockSize))
+                * blockSize;
+        this._itemShiftIndex = index % blockSize;
+        this._itemShift = 0;
     },
     _onScroll : function() {
         this._updatePositions();
@@ -100,7 +107,7 @@ module.exports = React.createClass({
             }
             fullLen += len;
         }
-        for (; i < children.length; i++) {
+        for (; i < Math.min(children.length, items.length); i++) {
             var elm = children[i];
             var len = that._getElementLength(elm);
             if (firstVisibleIdx === undefined && fullLen >= -that._itemShift) {
@@ -117,6 +124,9 @@ module.exports = React.createClass({
             blockShift = Math.min(0, blockShift);
             that._itemShift = Math.max(blockShift, that._itemShift);
         }
+//        console.log('firstVisibleIdx=' + firstVisibleIdx, 'that._itemShift='
+//                + that._itemShift, 'that._itemShiftIndex='
+//                + that._itemShiftIndex);
 
         // ------------------------------------------
 
@@ -153,7 +163,8 @@ module.exports = React.createClass({
         var itemsElm = that.refs.items.getDOMNode();
         var children = itemsElm.childNodes;
         var childPos = 0;
-        for (var i = 0; i < children.length; i++) {
+        var childNumber = Math.min(children.length, items.length)
+        for (var i = 0; i < childNumber; i++) {
             var child = children[i];
             var len = that._getElementLength(child);
             childPos += len;
@@ -172,6 +183,18 @@ module.exports = React.createClass({
         lastIndex += Math.max(0, Math.ceil((scrollerLen - itemsLength - shift)
                 / itemLen));
 
+        that._itemShiftIndex = firstVisibleIndex;
+        that._itemShift = shift;
+
+        console.log('firstIndex=' + firstIndex, 'lastIndex=' + lastIndex);
+        that._reloadItems(firstIndex, lastIndex).then(function(updated) {
+            if (updated) {
+                that.setState({});
+            }
+        });
+    },
+    _reloadItems : function(firstIndex, lastIndex) {
+        var that = this;
         var blockSize = that._getBlockSize();
         firstIndex = Math.max(0, Math.floor(firstIndex / blockSize))
                 * blockSize;
@@ -179,12 +202,10 @@ module.exports = React.createClass({
         if (that._totalItemsNumber !== undefined) {
             lastIndex = Math.min(lastIndex, that._totalItemsNumber);
         }
-
+        var items = that._getItems();
         if (that._firstIndex != firstIndex || //
         firstIndex + items.length != lastIndex) {
-            that._itemShiftIndex = firstVisibleIndex;
-            that._itemShift = shift;
-            Mosaic.P.then(function() {
+            return Mosaic.P.then(function() {
                 return that.props.getItemsNumber();
             }).then(function(num) {
                 that._totalItemsNumber = num;
@@ -196,7 +217,11 @@ module.exports = React.createClass({
             }).then(function(items) {
                 that._firstIndex = firstIndex;
                 that._items = items;
-                that.setState({});
+                return true;
+            });
+        } else {
+            return Mosaic.P.then(function() {
+                return false;
             });
         }
     },
@@ -211,16 +236,6 @@ module.exports = React.createClass({
     },
     _getBlockSize : function() {
         return this.props.blockSize || 10;
-    },
-    _eachChildElm : function(elm, callback) {
-        var children = elm.childNodes;
-        for (var i = 0; i < children.length; i++) {
-            var child = children[i];
-            var res = callback.call(this, child, i);
-            if (res !== undefined && !res) {
-                break;
-            }
-        }
     },
     render : function() {
         var that = this;
