@@ -1,65 +1,252 @@
 var _ = require('underscore');
 var React = require('react');
-var Scroller = require('./Scroller');
 var Mosaic = require('mosaic-commons');
 
 module.exports = React.createClass({
-    getInitialState : function() {
+    componentWillMount : function() {
+        this._itemShiftIndex = this.props.index || 0;
+        this._itemShift = 0;
+    },
+    componentDidMount : function() {
+        this._updatePositions();
+        this._checkItemList();
+    },
+    componentWillReceiveProps : function(props) {
+        this._itemShiftIndex = props.index || 0;
+        this._itemShift = 0;
+    },
+    componentDidUpdate : function() {
+        this._updatePositions();
+        this._checkItemList();
+    },
+    _onScroll : function() {
+        this._updatePositions();
+        this._checkItemList();
+    },
+    _getScrollerWidth : function() {
+        if (this._scrollerWidth === undefined) {
+            var scroller = this.refs.scroller.getDOMNode();
+            var placeholder = this.refs.placeholder.getDOMNode();
+            scroller.style.overflowY = 'scroller';
+            var first = scroller.clientWidth;
+            var second = scroller.offsetWidth;
+            this._scrollerWidth = (second - first) || 0;
+        }
+        return this._scrollerWidth;
+    },
+    _updatePositions : function() {
         var that = this;
-        this.manager = new Scroller({
-            getItemsNumber : this.props.getItemsNumber,
-            renderItems : function(options) {
-                return Mosaic.P.then(function() {
-                    return that.props.renderItems(options);
-                }).then(function(items) {
-                    var deferred = Mosaic.P.defer();
-                    options.deferred = deferred;
-                    var index = options.index;
-                    var length = options.length;
-                    var state = _.extend({}, options, {
-                        items : items,
-                        deferred : deferred
-                    });
-                    that.setState(that._newState(state));
-                    return deferred.promise;
-                });
-            },
-            updateItemsPosition : function(options) {
-                var itemsBlock = that.refs.items;
-                var div = itemsBlock.getDOMNode();
-                var position = options.position;
-                div.style.top = position + 'px';
+        var container = that.getDOMNode();
+        var scrollHeight = container.offsetHeight;
+        var scrollerWidth = that._getScrollerWidth();
+
+        var scroller = that.refs.scroller.getDOMNode();
+        var placeholder = that.refs.placeholder.getDOMNode();
+
+        // Update scroller parameters - its size and the size of the
+        // content (size of the placeholder).
+        var scrollPos = scroller.scrollTop;
+        var initialScrollPos = scrollPos;
+        scroller.style.height = scrollHeight + 'px';
+        scroller.style.marginRight = '-' + scrollerWidth + 'px';
+        // placeholder.style.marginRight = scrollerWidth + 'px';
+
+        var prevScrollPos = that._scrollPos || 0;
+
+        var reload = that._itemShift === undefined;
+
+        // Update placeholder length and scroller position
+        var placeholderLength = that._getPlaceholderLength();
+        if (scrollPos == 0 || //
+        scrollPos == placeholderLength - scrollHeight) {
+            reload = true;
+            scrollPos = placeholderLength / 2;
+            scroller.scrollTop = scrollPos;
+        }
+        placeholder.style.height = placeholderLength + 'px';
+        that._scrollPos = scrollPos;
+
+        // Update block position
+        var position = that._blockPosition || 0;
+        position += scrollPos - prevScrollPos;
+        that._blockPosition = position;
+
+        // Update content shift in the block
+        if (reload) {
+            that._itemShift = 0;
+        } else {
+            that._itemShift -= initialScrollPos - prevScrollPos;
+        }
+
+        // Take into account the length of items loaded before
+        // the first visible element
+        var items = that._getItems();
+        var itemShiftIndex = that._itemShiftIndex || 0;
+        var firstIndex = that._firstIndex || 0;
+        var n = Math
+                .max(0, Math.min(itemShiftIndex - firstIndex, items.length));
+        var itemsElm = that.refs.items.getDOMNode();
+        var children = itemsElm.childNodes;
+        n = Math.min(n, children.length);
+        var firstVisibleIdx;
+        var fullLen = 0;
+        for (var i = 0; i < n; i++) {
+            var elm = children[i];
+            var len = that._getElementLength(elm);
+            that._itemShiftIndex--;
+            that._itemShift -= len;
+            if (firstVisibleIdx === undefined && fullLen >= -that._itemShift) {
+                firstVisibleIdx = firstIndex + i;
             }
-        });
-        return this._newState({
-            items : [],
-            index : 0,
-            length : 0,
-            deferred : undefined
-        });
+            fullLen += len;
+        }
+        for (; i < children.length; i++) {
+            var elm = children[i];
+            var len = that._getElementLength(elm);
+            if (firstVisibleIdx === undefined && fullLen >= -that._itemShift) {
+                firstVisibleIdx = firstIndex + i;
+            }
+            fullLen += len;
+        }
+        if (firstIndex === 0) {
+            that._itemShift = Math.min(0, that._itemShift);
+        }
+
+        if (firstIndex + items.length === that._totalItemsNumber) {
+            var blockShift = scrollHeight - fullLen;
+            blockShift = Math.min(0, blockShift);
+            that._itemShift = Math.max(blockShift, that._itemShift);
+        }
+
+        // ------------------------------------------
+
+        // Change styles of the element containing the block
+        var itemsElm = this.refs.items.getDOMNode();
+        itemsElm.style.top = this._blockPosition + 'px';
+        itemsElm.style.marginTop = this._itemShift + 'px';
+
+        // Update the slider
+        var scrollBar = this.refs.scrollbar.getDOMNode();
+        if (that._totalItemsNumber) {
+            var sliderElm = this.refs.slider.getDOMNode();
+            var progress = 1.0 * firstVisibleIdx / that._totalItemsNumber;
+            var sliderHeight = sliderElm.offsetHeight;
+            var progressPx = Math.round((scrollHeight - sliderHeight)
+                    * progress);
+            sliderElm.style.top = progressPx + 'px';
+            scrollBar.style.display = 'block';
+        } else {
+            scrollBar.style.display = 'none';
+        }
     },
-    componentDidMount : function(nextProps) {
-        this._finishRendering();
+
+    _checkItemList : function() {
+        var that = this;
+        var scrollerElm = that.refs.scroller.getDOMNode();
+        var scrollerLen = that._getElementLength(scrollerElm);
+        var items = that._getItems();
+
+        var firstIndex = that._firstIndex || 0;
+        var lastIndex = firstIndex + items.length;
+        var itemsLength = 0;
+        var shift = that._itemShift;
+        var itemsElm = that.refs.items.getDOMNode();
+        var children = itemsElm.childNodes;
+        var childPos = 0;
+        for (var i = 0; i < children.length; i++) {
+            var child = children[i];
+            var len = that._getElementLength(child);
+            childPos += len;
+            if (that._itemShift + childPos <= 0) {
+                firstIndex++;
+                shift = that._itemShift + childPos;
+            }
+            if (that._itemShift + childPos > scrollerLen) {
+                lastIndex--;
+            }
+        }
+
+        var firstVisibleIndex = firstIndex;
+        var itemLen = that._getAverageItemLength();
+        firstIndex -= Math.max(0, Math.ceil(shift / itemLen));
+        lastIndex += Math.max(0, Math.ceil((scrollerLen - itemsLength - shift)
+                / itemLen));
+
+        var blockSize = that._getBlockSize();
+        firstIndex = Math.max(0, Math.floor(firstIndex / blockSize))
+                * blockSize;
+        lastIndex = Math.max(0, Math.ceil(lastIndex / blockSize)) * blockSize;
+        if (that._totalItemsNumber !== undefined) {
+            lastIndex = Math.min(lastIndex, that._totalItemsNumber);
+        }
+
+        if (that._firstIndex != firstIndex || //
+        firstIndex + items.length != lastIndex) {
+            that._itemShiftIndex = firstVisibleIndex;
+            that._itemShift = shift;
+            Mosaic.P.then(function() {
+                return that.props.getItemsNumber();
+            }).then(function(num) {
+                that._totalItemsNumber = num;
+                num = Math.min(num, lastIndex) - firstIndex;
+                return that.props.renderItems({
+                    index : firstIndex,
+                    length : num
+                });
+            }).then(function(items) {
+                that._firstIndex = firstIndex;
+                that._items = items;
+                that.setState({});
+            });
+        }
     },
-    componentDidUpdate : function(nextProps) {
-        this._finishRendering();
+    _getPlaceholderLength : function() {
+        return 1000000;
+    },
+    _getItems : function() {
+        return this._items || [];
+    },
+    _getAverageItemLength : function() {
+        return this.props.itemLen || 10;
+    },
+    _getBlockSize : function() {
+        return this.props.blockSize || 10;
+    },
+    _eachChildElm : function(elm, callback) {
+        var children = elm.childNodes;
+        for (var i = 0; i < children.length; i++) {
+            var child = children[i];
+            var res = callback.call(this, child, i);
+            if (res !== undefined && !res) {
+                break;
+            }
+        }
     },
     render : function() {
-        var items = this.state.items;
-        var placeholderLength = this.manager.getPlaceholderLength();
-        var style = _.extend({}, this.props.style, {
-            overflowY : 'auto',
-            overflowX : 'hidden'
+        var that = this;
+        var items = that._getItems();
+        var style = _.extend({}, that.props.style, {
+            overflow : 'hidden'
         });
         return React.DOM.div({
-            id : this.props.id,
-            className : this.props.className,
+            id : that.props.id,
+            className : that.props.className,
             style : style,
-            onScroll : this._onScroll
+            onScroll : that._onScroll
         }, React.DOM.div({
+            ref : 'scroller',
+            style : {
+                overflowY : 'scroll',
+                overflowX : 'hidden',
+                position : 'relative'
+            }
+        }, React.DOM.div({
+            ref : 'placeholder',
             style : {
                 position : 'relative',
-                height : placeholderLength + 'px'
+                height : '0px',
+                overflow : 'hidden',
+                paddingRight : '3px'
             }
         }, React.DOM.div({
             ref : 'items',
@@ -67,65 +254,35 @@ module.exports = React.createClass({
                 position : 'absolute',
                 left : '0px',
                 right : '0px',
+                top : '0px',
                 bottom : 'auto'
             }
-        }, items)));
-    },
-    _newState : function(options) {
-        return _.extend({}, this.state, options);
-    },
-    /** This handler is called when the scroller changes its position. */
-    _onScroll : function(event) {
-        if (this._handling)
-            return;
-        var container = this.getDOMNode();
-        var scrollPos = container.scrollTop;
-        this.manager.updateScrollPosition(scrollPos);
-    },
-    _finishRendering : function() {
-        var container = this.getDOMNode();
-        var height = container.offsetHeight;
-        this.manager.setScrollLength(height);
-
-        var deferred = this.state.deferred;
-        if (deferred) {
-            var itemsBlock = this.refs.items;
-            var div = itemsBlock.getDOMNode();
-            var length = div.offsetHeight;
-
-            var shift = -1;
-            var index = this.state.index;
-            var focused = this.state.focused;
-            if (focused >= 0) {
-                var child = div.firstChild;
-                shift = -1;
-                for (var i = index; child && i < focused; i++) {
-                    var len = child.offsetHeight;
-                    if (shift < 0) {
-                        shift = len;
-                    } else {
-                        shift += len;
-                    }
-                    child = child.nextSibling;
-                }
+        }, items))), React.DOM.div({
+            ref : 'scrollbar',
+            className : 'scrollbar',
+            style : {
+                position : 'absolute',
+                top : '0px',
+                right : '0px',
+                bottom : '0px',
+                left : 'auto',
+                minWidth : '3px',
+                backgroundColor : 'rgba(196,196,196,0.5)',
             }
-            var result = {
-                length : length,
-                size : this.state.items.length,
-                shift : shift
-            };
-            var scrollPos = this.manager.getScrollPosition();
-            container.scrollTop = scrollPos;
-            deferred.resolve(result);
-        }
-        var index = this.props.index || 0;
-        var that = this;
-        that._handling = true;
-        this.manager.scrollToItem(index).then(function() {
-            setTimeout(function() {
-                that._handling = false;
-            }, 1);
-        });
+        }, React.DOM.div({
+            ref : 'slider',
+            className : 'slider',
+            style : {
+                position : 'absolute',
+                right : '0px',
+                left : '0px',
+                minHeight : '3px',
+                backgroundColor : 'gray',
+            }
+        })));
+    },
+    _getElementLength : function(elm) {
+        return elm.offsetHeight;
     },
 
 });
