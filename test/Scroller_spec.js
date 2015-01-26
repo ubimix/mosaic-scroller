@@ -228,8 +228,8 @@ describe('Scroller', function() {
         .then(function() {
             return scroller.setDelta(-110).then(function() {
                 expect(scroller.getBlockShift()).to.eql(-110);
-                expect(scroller.getFirstItemShift()).to.eql(-10);
-                expect(scroller.getFirstItemIndex()).to.eql(1);
+                expect(scroller.getFirstItemShift()).to.eql(40);
+                expect(scroller.getFirstItemIndex()).to.eql(2);
             });
         }) //
         .then(function() {
@@ -241,23 +241,23 @@ describe('Scroller', function() {
         })//
         .then(function() {
             return scroller.setDelta(-180).then(function() {
-                expect(scroller.getBlockShift()).to.eql(-30);
-                expect(scroller.getFirstItemIndex()).to.eql(2);
-                expect(scroller.getFirstItemShift()).to.eql(-30);
+                expect(scroller.getBlockShift()).to.eql(-140);
+                expect(scroller.getFirstItemIndex()).to.eql(3);
+                expect(scroller.getFirstItemShift()).to.eql(90);
             });
         })//
         .then(function() {
             return scroller.setDelta(-20).then(function() {
-                expect(scroller.getBlockShift()).to.eql(-50);
-                expect(scroller.getFirstItemShift()).to.eql(-50);
-                expect(scroller.getFirstItemIndex()).to.eql(2);
+                expect(scroller.getBlockShift()).to.eql(-140);
+                expect(scroller.getFirstItemShift()).to.eql(90);
+                expect(scroller.getFirstItemIndex()).to.eql(3);
             });
         })//
         .then(function() {
             return scroller.setDelta(+60).then(function() {
-                expect(scroller.getBlockShift()).to.eql(-140);
-                expect(scroller.getFirstItemShift()).to.eql(+10);
-                expect(scroller.getFirstItemIndex()).to.eql(2);
+                expect(scroller.getBlockShift()).to.eql(-80);
+                expect(scroller.getFirstItemShift()).to.eql(+20);
+                expect(scroller.getFirstItemIndex()).to.eql(1);
             });
         })//
         .then(done, done);
