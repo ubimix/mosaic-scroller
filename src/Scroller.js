@@ -166,8 +166,6 @@ module.exports = Mosaic.Class.extend(Mosaic.Events.prototype, {
             count = Math.ceil(count / blockSize) * blockSize;
             count = Math.max(0, Math.min(count, itemsNumber - index));
 
-            console.log('_loadItems: index=' + index, 'count=' + count);
-
             var load = //
             !that._block || //
             that._block.getIndex() !== index || //

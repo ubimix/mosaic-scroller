@@ -12,6 +12,7 @@ module.exports = React.createClass({
         this._scroller = new Scroller(_.extend({
             itemLen : 10,
             blockSize : 10,
+            threshold : 100,
             scrollerLen : function() {
                 if (!that.isMounted())
                     return 10;
@@ -31,8 +32,6 @@ module.exports = React.createClass({
                 return;
             var itemsElm = that.refs.items.getDOMNode();
             var blockShift = that._scroller.getBlockShift();
-            var firstIndex = that._scroller.getFirstItemIndex();
-            var firstShift = that._scroller.getFirstItemShift();
             itemsElm.style.marginTop = blockShift + 'px';
         });
         this._tracker.addChangeListener(function(ev) {
@@ -48,8 +47,12 @@ module.exports = React.createClass({
         }, this);
     },
     componentDidMount : function() {
-        this._tracker.setPosition(0);
-        this._scroller.focusItem(this.props.index);
+        var that = this;
+        that._tracker.setPosition(0);
+        setTimeout(function() {
+            var scroller = that.refs.scroller.getDOMNode();
+            that._tracker.setPosition(scroller.scrollTop);
+        }, 1);
     },
     componentWillReceiveProps : function(props) {
         this._scroller.focusItem(props.index);
