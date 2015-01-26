@@ -2,6 +2,25 @@ var _ = require('underscore');
 var React = require('react');
 var Mosaic = require('mosaic-commons');
 
+var Scroller = Mosaic.Class.extend({
+
+    initialize : function(options) {
+        this.setOptions(options);
+        this._position = 0;
+    },
+
+    updatePosition : function(delta) {
+
+    }
+
+});
+
+var ScrollBarTracker = Mosaic.Class.extend(Mosaic.Events.prototype, {
+    setPosition : function(position) {
+
+    }
+});
+
 module.exports = React.createClass({
     componentWillMount : function() {
         this._resetFields(this.props);
@@ -124,9 +143,9 @@ module.exports = React.createClass({
             blockShift = Math.min(0, blockShift);
             that._itemShift = Math.max(blockShift, that._itemShift);
         }
-//        console.log('firstVisibleIdx=' + firstVisibleIdx, 'that._itemShift='
-//                + that._itemShift, 'that._itemShiftIndex='
-//                + that._itemShiftIndex);
+        // console.log('firstVisibleIdx=' + firstVisibleIdx, 'that._itemShift='
+        // + that._itemShift, 'that._itemShiftIndex='
+        // + that._itemShiftIndex);
 
         // ------------------------------------------
 
