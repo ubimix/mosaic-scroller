@@ -34,13 +34,11 @@ module.exports = Mosaic.Class.extend(Mosaic.Events.prototype, {
             delta = this._position - prevPosition;
         }
         this._delta = delta;
-        if (this._position !== prevPosition) {
-            this.emit('update', {
-                prevPosition : prevPosition,
-                position : this._position,
-                delta : delta
-            });
-        }
+        this.emit('update', {
+            prevPosition : prevPosition,
+            position : this._position,
+            delta : delta
+        });
     },
 
     getThreshold : function() {

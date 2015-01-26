@@ -52,29 +52,16 @@ module.exports = Mosaic.Class.extend(Mosaic.Events.prototype, {
             }
             var index = that._block.getIndex();
             var blockSize = that._block.getSize();
-            var newShift = that._blockShift + delta;
-            var before = 0;
-            var after = 0;
-            var itemIndex = index;
-            for (var i = 0; i < blockSize; i++) {
-                var len = that._block.getItemLength(i);
-                if (newShift + before + len < 0) {
-                    before += len;
-                    itemIndex++;
-                } else {
-                    after += len;
-                }
-            }
-            var itemShift = newShift + before;
 
-            var scrollerLen = that.getScrollerLength();
-            if (newShift + before + after < 0
-                    || newShift > that._blockShift + before + after
-                            + scrollerLen) {
-                itemIndex = that._firstItemIndex + Math.floor(delta / itemLen);
-                itemShift = -Math.abs(delta) % itemLen;
+            var shift = that._blockShift + delta;
+            var firstIndex = index;
+            for (var i = 0; shift < 0 && i < blockSize; i++) {
+                var len = that._block.getItemLength(i);
+                shift += len;
+                firstIndex++;
             }
-            return that.focusItem(itemIndex, itemShift);
+            // TODO: go directly to the required item if the delta is too big
+            return that.focusItem(firstIndex, shift);
         });
     },
 
@@ -167,7 +154,8 @@ module.exports = Mosaic.Class.extend(Mosaic.Events.prototype, {
 
             var index = that._firstItemIndex;
             index = Math.max(0, Math.min(index, itemsNumber - 1));
-            var count = Math.ceil(scrollerLen / itemLen);
+
+            var count = Math.ceil(scrollerLen * 2 / itemLen);
             var delta = Math.ceil(Math.abs(that._firstItemShift) / itemLen);
             if (that._firstItemShift >= 0) {
                 index -= delta;
@@ -177,6 +165,8 @@ module.exports = Mosaic.Class.extend(Mosaic.Events.prototype, {
             index = Math.floor(Math.max(0, index) / blockSize) * blockSize;
             count = Math.ceil(count / blockSize) * blockSize;
             count = Math.max(0, Math.min(count, itemsNumber - index));
+
+            console.log('_loadItems: index=' + index, 'count=' + count);
 
             var load = //
             !that._block || //
@@ -198,7 +188,7 @@ module.exports = Mosaic.Class.extend(Mosaic.Events.prototype, {
                 beforeLen += len;
             }
 
-            //  
+            //
             var size = that._block.getSize();
             var itemsNumber = that.getItemsNumber();
             if (index + size === itemsNumber) {
@@ -209,7 +199,7 @@ module.exports = Mosaic.Class.extend(Mosaic.Events.prototype, {
                 }
                 var scrollerLength = that.getScrollerLength();
                 that._firstItemShift = //
-                Math.max(that._firstItemShift, scrollerLength / 2 - tailLen);
+                Math.max(that._firstItemShift, scrollerLength - tailLen);
             }
 
             // 

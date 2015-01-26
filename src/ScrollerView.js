@@ -1,53 +1,85 @@
 var _ = require('underscore');
 var React = require('react');
 var Mosaic = require('mosaic-commons');
-
-var Scroller = Mosaic.Class.extend({
-
-    initialize : function(options) {
-        this.setOptions(options);
-        this._position = 0;
-    },
-
-    updatePosition : function(delta) {
-
-    }
-
-});
-
-var ScrollBarTracker = Mosaic.Class.extend(Mosaic.Events.prototype, {
-    setPosition : function(position) {
-
-    }
-});
+var ScrollBarTracker = require('./ScrollBarTracker');
+var ScrollerBlock = require('./ScrollerBlock');
+var Scroller = require('./Scroller');
 
 module.exports = React.createClass({
     componentWillMount : function() {
-        this._resetFields(this.props);
+        var that = this;
+        this._tracker = new ScrollBarTracker();
+        this._scroller = new Scroller(_.extend({
+            itemLen : 10,
+            blockSize : 10,
+            scrollerLen : function() {
+                if (!that.isMounted())
+                    return 10;
+                var container = that.getDOMNode();
+                return container.offsetHeight;
+            },
+        }, this.props, {
+            itemsNumber : function() {
+                return that.props.getItemsNumber();
+            },
+            items : function(params) {
+                return that._startItemsRendering(params);
+            }
+        }));
+        this._scroller.addChangeListener(function() {
+            if (!that.isMounted())
+                return;
+            var itemsElm = that.refs.items.getDOMNode();
+            var blockShift = that._scroller.getBlockShift();
+            var firstIndex = that._scroller.getFirstItemIndex();
+            var firstShift = that._scroller.getFirstItemShift();
+            itemsElm.style.marginTop = blockShift + 'px';
+        });
+        this._tracker.addChangeListener(function(ev) {
+            if (!that.isMounted())
+                return;
+            var scrollerElm = that.refs.scroller.getDOMNode();
+            if (ev.position != scrollerElm.scrollTop) {
+                scrollerElm.scrollTop = ev.position;
+            }
+            var itemsElm = that.refs.items.getDOMNode();
+            itemsElm.style.top = ev.position + 'px';
+            this._scroller.setDelta(-ev.delta);
+        }, this);
     },
     componentDidMount : function() {
-        this._updatePositions();
-        this._checkItemList();
+        this._tracker.setPosition(0);
+        this._scroller.focusItem(this.props.index);
     },
     componentWillReceiveProps : function(props) {
-        this._resetFields(props);
+        this._scroller.focusItem(props.index);
     },
     componentDidUpdate : function() {
-        this._updatePositions();
-        this._checkItemList();
-    },
-    _resetFields : function(props) {
-        this.items = [];
-        var blockSize = this._getBlockSize();
-        var index = props.index || 0;
-        this._firstIndex = Math.max(0, Math.floor(index / blockSize))
-                * blockSize;
-        this._itemShiftIndex = index % blockSize;
-        this._itemShift = 0;
+        this._finishItemsRendering();
     },
     _onScroll : function() {
-        this._updatePositions();
-        this._checkItemList();
+        var scroller = this.refs.scroller.getDOMNode();
+        this._tracker.setPosition(scroller.scrollTop);
+    },
+    getInitialState : function() {
+        return {
+            index : 0,
+            length : 0,
+            items : [],
+        };
+    },
+    _startItemsRendering : function(params) {
+        var that = this;
+        return Mosaic.P.then(function() {
+            return that.props.renderItems(params);
+        }).then(function(items) {
+            var deferred = Mosaic.P.defer();
+            that.setState(_.extend({}, params, {
+                deferred : deferred,
+                items : items
+            }));
+            return deferred.promise;
+        });
     },
     _getScrollerWidth : function() {
         if (this._scrollerWidth === undefined) {
@@ -60,208 +92,46 @@ module.exports = React.createClass({
         }
         return this._scrollerWidth;
     },
-    _updatePositions : function() {
+    _finishItemsRendering : function() {
         var that = this;
+
         var container = that.getDOMNode();
-        var scrollHeight = container.offsetHeight;
         var scrollerWidth = that._getScrollerWidth();
-
         var scroller = that.refs.scroller.getDOMNode();
-        var placeholder = that.refs.placeholder.getDOMNode();
-
-        // Update scroller parameters - its size and the size of the
-        // content (size of the placeholder).
-        var scrollPos = scroller.scrollTop;
-        var initialScrollPos = scrollPos;
-        scroller.style.height = scrollHeight + 'px';
+        scroller.style.height = container.offsetHeight + 'px';
         scroller.style.marginRight = '-' + scrollerWidth + 'px';
-        // placeholder.style.marginRight = scrollerWidth + 'px';
 
-        var prevScrollPos = that._scrollPos || 0;
+        if (!that.state || !that.state.deferred)
+            return;
 
-        var reload = that._itemShift === undefined;
-
-        // Update placeholder length and scroller position
-        var placeholderLength = that._getPlaceholderLength();
-        if (scrollPos == 0 || //
-        scrollPos == placeholderLength - scrollHeight) {
-            reload = true;
-            scrollPos = placeholderLength / 2;
-            scroller.scrollTop = scrollPos;
-        }
-        placeholder.style.height = placeholderLength + 'px';
-        that._scrollPos = scrollPos;
-
-        // Update block position
-        var position = that._blockPosition || 0;
-        position += scrollPos - prevScrollPos;
-        that._blockPosition = position;
-
-        // Update content shift in the block
-        if (reload) {
-            that._itemShift = 0;
-        } else {
-            that._itemShift -= initialScrollPos - prevScrollPos;
-        }
-
-        // Take into account the length of items loaded before
-        // the first visible element
-        var items = that._getItems();
-        var itemShiftIndex = that._itemShiftIndex || 0;
-        var firstIndex = that._firstIndex || 0;
-        var n = Math
-                .max(0, Math.min(itemShiftIndex - firstIndex, items.length));
+        var state = that.state;
+        var items = state.items;
         var itemsElm = that.refs.items.getDOMNode();
         var children = itemsElm.childNodes;
-        n = Math.min(n, children.length);
-        var firstVisibleIdx;
-        var fullLen = 0;
-        for (var i = 0; i < n; i++) {
-            var elm = children[i];
-            var len = that._getElementLength(elm);
-            that._itemShiftIndex--;
-            that._itemShift -= len;
-            if (firstVisibleIdx === undefined && fullLen >= -that._itemShift) {
-                firstVisibleIdx = firstIndex + i;
-            }
-            fullLen += len;
-        }
-        for (; i < Math.min(children.length, items.length); i++) {
-            var elm = children[i];
-            var len = that._getElementLength(elm);
-            if (firstVisibleIdx === undefined && fullLen >= -that._itemShift) {
-                firstVisibleIdx = firstIndex + i;
-            }
-            fullLen += len;
-        }
-        if (firstIndex === 0) {
-            that._itemShift = Math.min(0, that._itemShift);
-        }
-
-        if (firstIndex + items.length === that._totalItemsNumber) {
-            var blockShift = scrollHeight - fullLen;
-            blockShift = Math.min(0, blockShift);
-            that._itemShift = Math.max(blockShift, that._itemShift);
-        }
-        // console.log('firstVisibleIdx=' + firstVisibleIdx, 'that._itemShift='
-        // + that._itemShift, 'that._itemShiftIndex='
-        // + that._itemShiftIndex);
-
-        // ------------------------------------------
-
-        // Change styles of the element containing the block
-        var itemsElm = this.refs.items.getDOMNode();
-        itemsElm.style.top = this._blockPosition + 'px';
-        itemsElm.style.marginTop = this._itemShift + 'px';
-
-        // Update the slider
-        var scrollBar = this.refs.scrollbar.getDOMNode();
-        if (that._totalItemsNumber) {
-            var sliderElm = this.refs.slider.getDOMNode();
-            var progress = 1.0 * firstVisibleIdx / that._totalItemsNumber;
-            var sliderHeight = sliderElm.offsetHeight;
-            var progressPx = Math.round((scrollHeight - sliderHeight)
-                    * progress);
-            sliderElm.style.top = progressPx + 'px';
-            scrollBar.style.display = 'block';
-        } else {
-            scrollBar.style.display = 'none';
-        }
-    },
-
-    _checkItemList : function() {
-        var that = this;
-        var scrollerElm = that.refs.scroller.getDOMNode();
-        var scrollerLen = that._getElementLength(scrollerElm);
-        var items = that._getItems();
-
-        var firstIndex = that._firstIndex || 0;
-        var lastIndex = firstIndex + items.length;
-        var itemsLength = 0;
-        var shift = that._itemShift;
-        var itemsElm = that.refs.items.getDOMNode();
-        var children = itemsElm.childNodes;
-        var childPos = 0;
-        var childNumber = Math.min(children.length, items.length)
-        for (var i = 0; i < childNumber; i++) {
-            var child = children[i];
-            var len = that._getElementLength(child);
-            childPos += len;
-            if (that._itemShift + childPos <= 0) {
-                firstIndex++;
-                shift = that._itemShift + childPos;
-            }
-            if (that._itemShift + childPos > scrollerLen) {
-                lastIndex--;
-            }
-        }
-
-        var firstVisibleIndex = firstIndex;
-        var itemLen = that._getAverageItemLength();
-        firstIndex -= Math.max(0, Math.ceil(shift / itemLen));
-        lastIndex += Math.max(0, Math.ceil((scrollerLen - itemsLength - shift)
-                / itemLen));
-
-        that._itemShiftIndex = firstVisibleIndex;
-        that._itemShift = shift;
-
-        console.log('firstIndex=' + firstIndex, 'lastIndex=' + lastIndex);
-        that._reloadItems(firstIndex, lastIndex).then(function(updated) {
-            if (updated) {
-                that.setState({});
+        var block = new ScrollerBlock({
+            getIndex : function() {
+                return state.index;
+            },
+            getSize : function() {
+                return children.length;
+            },
+            getItemLength : function(index) {
+                var len = children.length;
+                if (index < 0 || index >= len)
+                    return 0;
+                var elm = children[index];
+                return elm.offsetHeight;
             }
         });
-    },
-    _reloadItems : function(firstIndex, lastIndex) {
-        var that = this;
-        var blockSize = that._getBlockSize();
-        firstIndex = Math.max(0, Math.floor(firstIndex / blockSize))
-                * blockSize;
-        lastIndex = Math.max(0, Math.ceil(lastIndex / blockSize)) * blockSize;
-        if (that._totalItemsNumber !== undefined) {
-            lastIndex = Math.min(lastIndex, that._totalItemsNumber);
-        }
-        var items = that._getItems();
-        if (that._firstIndex != firstIndex || //
-        firstIndex + items.length != lastIndex) {
-            return Mosaic.P.then(function() {
-                return that.props.getItemsNumber();
-            }).then(function(num) {
-                that._totalItemsNumber = num;
-                num = Math.min(num, lastIndex) - firstIndex;
-                return that.props.renderItems({
-                    index : firstIndex,
-                    length : num
-                });
-            }).then(function(items) {
-                that._firstIndex = firstIndex;
-                that._items = items;
-                return true;
-            });
-        } else {
-            return Mosaic.P.then(function() {
-                return false;
-            });
-        }
-    },
-    _getPlaceholderLength : function() {
-        return 1000000;
-    },
-    _getItems : function() {
-        return this._items || [];
-    },
-    _getAverageItemLength : function() {
-        return this.props.itemLen || 10;
-    },
-    _getBlockSize : function() {
-        return this.props.blockSize || 10;
+        state.deferred.resolve(block);
     },
     render : function() {
         var that = this;
-        var items = that._getItems();
+        var items = that.state.items || [];
         var style = _.extend({}, that.props.style, {
             overflow : 'hidden'
         });
+        var placeholderLen = that._tracker.getLength();
         return React.DOM.div({
             id : that.props.id,
             className : that.props.className,
@@ -278,7 +148,7 @@ module.exports = React.createClass({
             ref : 'placeholder',
             style : {
                 position : 'relative',
-                height : '0px',
+                height : placeholderLen + 'px',
                 overflow : 'hidden',
                 paddingRight : '3px'
             }
@@ -291,32 +161,7 @@ module.exports = React.createClass({
                 top : '0px',
                 bottom : 'auto'
             }
-        }, items))), React.DOM.div({
-            ref : 'scrollbar',
-            className : 'scrollbar',
-            style : {
-                position : 'absolute',
-                top : '0px',
-                right : '0px',
-                bottom : '0px',
-                left : 'auto',
-                minWidth : '3px',
-                backgroundColor : 'rgba(196,196,196,0.5)',
-            }
-        }, React.DOM.div({
-            ref : 'slider',
-            className : 'slider',
-            style : {
-                position : 'absolute',
-                right : '0px',
-                left : '0px',
-                minHeight : '3px',
-                backgroundColor : 'gray',
-            }
-        })));
-    },
-    _getElementLength : function(elm) {
-        return elm.offsetHeight;
+        }, items))));
     },
 
 });
