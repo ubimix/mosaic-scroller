@@ -5,36 +5,58 @@ var ScrollBarTracker = require('./ScrollBarTracker');
 var ScrollerBlock = require('./ScrollerBlock');
 var Scroller = require('./Scroller');
 
+var ResizeMixin = {
+    addResizeListener : function(listener) {
+        if (window.attachEvent) {
+            window.attachEvent('onresize', listener);
+        } else if (window.addEventListener) {
+            window.addEventListener('resize', listener, true);
+        }
+    },
+    removeResizeListener : function(listener) {
+        if (window.detachEvent) {
+            window.detachEvent('onresize', listener);
+        } else if (window.removeEventListener) {
+            window.removeEventListener('resize', listener, true);
+        }
+    }
+
+};
+
 module.exports = React.createClass({
+    mixins : [ ResizeMixin ],
+
     componentWillMount : function() {
         var that = this;
-        this._tracker = new ScrollBarTracker();
-        this._scroller = new Scroller(_.extend({
+        that.addResizeListener(that._onResize);
+        that._tracker = new ScrollBarTracker();
+        that._scroller = new Scroller(_.extend({
             itemLen : 10,
             blockSize : 10,
-            threshold : 100,
             scrollerLen : function() {
                 if (!that.isMounted())
                     return 10;
                 var container = that.getDOMNode();
-                return container.offsetHeight;
+                var scrollerLen = container.offsetHeight;
+                return scrollerLen;
             },
-        }, this.props, {
+        }, that.props, {
             itemsNumber : function() {
                 return that.props.getItemsNumber();
             },
             items : function(params) {
+                console.log('* load items');
                 return that._startItemsRendering(params);
             }
         }));
-        this._scroller.addChangeListener(function() {
+        that._scroller.addChangeListener(function() {
             if (!that.isMounted())
                 return;
             var itemsElm = that.refs.items.getDOMNode();
             var blockShift = that._scroller.getBlockShift();
             itemsElm.style.marginTop = blockShift + 'px';
         });
-        this._tracker.addChangeListener(function(ev) {
+        that._tracker.addChangeListener(function(ev) {
             if (!that.isMounted())
                 return;
             var scrollerElm = that.refs.scroller.getDOMNode();
@@ -43,42 +65,73 @@ module.exports = React.createClass({
             }
             var itemsElm = that.refs.items.getDOMNode();
             itemsElm.style.top = ev.position + 'px';
-            this._scroller.setDelta(-ev.delta);
-        }, this);
+            that._scroller.setDelta(-ev.delta);
+        }, that);
+    },
+    componentWillUnmount : function() {
+        this.removeResizeListener(this._onResize);
     },
     componentDidMount : function() {
+        console.log('componentDidMount');
         var that = this;
-        that._tracker.setPosition(0);
+        that._scroller.setDelta(0);
         setTimeout(function() {
-            var scroller = that.refs.scroller.getDOMNode();
-            that._tracker.setPosition(scroller.scrollTop);
+            that._updateScroller();
         }, 1);
     },
     componentWillReceiveProps : function(props) {
-        this._scroller.focusItem(props.index);
+        console.log('componentWillReceiveProps');
+        this._updatePosition = true;
     },
     componentDidUpdate : function() {
+        console.log('componentDidUpdate');
+        if (this._updatePosition) {
+            this._updatePosition = false;
+            this._scroller.focusItem(this.props.index || 0);
+        }
         this._finishItemsRendering();
     },
+    _onResize : function() {
+        this._updateScroller();
+        this._scroller.setDelta(0);
+    },
     _onScroll : function() {
-        var scroller = this.refs.scroller.getDOMNode();
-        this._tracker.setPosition(scroller.scrollTop);
+        this._updateScroller();
     },
     getInitialState : function() {
-        return {
+        return this._newState();
+    },
+    _newState : function() {
+        var result = _.extend({
             index : 0,
             length : 0,
             items : [],
-        };
+        }, this.state);
+        _.each(arguments, function(options) {
+            result = _.extend(result, options);
+        });
+        return result;
+    },
+    _updateScroller : function() {
+        console.log('_updateScroller');
+        var container = this.getDOMNode();
+        var scroller = this.refs.scroller.getDOMNode();
+        this._tracker.setPosition(scroller.scrollTop);
+        scroller.style.height = container.offsetHeight + 'px';
+        var placeholderLen = this._tracker.getLength();
+        var placeholder = this.refs.placeholder.getDOMNode();
+        placeholder.style.height = placeholderLen + 'px';
     },
     _startItemsRendering : function(params) {
+        console.log('_startItemsRendering');
         var that = this;
+        params = _.extend({}, that.state, params);
         return Mosaic.P.then(function() {
             return that.props.renderItems(params);
         }).then(function(items) {
             var deferred = Mosaic.P.defer();
-            that.setState(_.extend({}, params, {
-                deferred : deferred,
+            that._itemsRenderingDeferred = deferred;
+            that.setState(that._newState(params, {
                 items : items
             }));
             return deferred.promise;
@@ -97,6 +150,7 @@ module.exports = React.createClass({
     },
     _finishItemsRendering : function() {
         var that = this;
+        console.log('_finishItemsRendering');
 
         var container = that.getDOMNode();
         var scrollerWidth = that._getScrollerWidth();
@@ -104,8 +158,10 @@ module.exports = React.createClass({
         scroller.style.height = container.offsetHeight + 'px';
         scroller.style.marginRight = '-' + scrollerWidth + 'px';
 
-        if (!that.state || !that.state.deferred)
+        var deferred = that._itemsRenderingDeferred;
+        if (!deferred)
             return;
+        delete that._itemsRenderingDeferred;
 
         var state = that.state;
         var items = state.items;
@@ -126,7 +182,7 @@ module.exports = React.createClass({
                 return elm.offsetHeight;
             }
         });
-        state.deferred.resolve(block);
+        deferred.resolve(block);
     },
     render : function() {
         var that = this;

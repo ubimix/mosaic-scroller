@@ -44,7 +44,7 @@ module.exports = Mosaic.Class.extend(Mosaic.Events.prototype, {
     getThreshold : function() {
         if (!this.options.threshold) {
             var length = this.getLength();
-            this.options.threshold = Math.min(length / 10, 100);
+            this.options.threshold = Math.max(length / 4, 50);
         }
         return this.options.threshold;
     },
