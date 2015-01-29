@@ -12,6 +12,13 @@ module.exports = React.createClass({
                 return Mosaic.P.then(function() {
                     return that.props.renderItems(options);
                 }).then(function(items) {
+		    if (!that.isMounted())
+	               return {
+                         length : 0,
+                         size : 0,
+                         shift : 0
+            	       };
+
                     var deferred = Mosaic.P.defer();
                     options.deferred = deferred;
                     var index = options.index;
@@ -26,6 +33,8 @@ module.exports = React.createClass({
             },
             updateItemsPosition : function(options) {
                 var itemsBlock = that.refs.items;
+                if (!that.isMounted())
+	           return;
                 var div = itemsBlock.getDOMNode();
                 var position = options.position;
                 div.style.top = position + 'px';
