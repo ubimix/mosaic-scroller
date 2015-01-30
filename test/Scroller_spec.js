@@ -21,8 +21,8 @@ describe('Scroller', function() {
                         return params.index;
                     },
                     getSize : function() {
-                        return Math.min(params.length, array.length
-                                - params.index);
+                        return Math.min(params.length, array.length - //
+                        params.index);
                     },
                     getItemLength : function(index) {
                         var len = this.getSize();
@@ -131,8 +131,8 @@ describe('Scroller', function() {
         }).then(done, done);
     });
 
-    it('should be able to load appropriate blocks to focus items '
-            + 'with shifts', function(done) {
+    it('should be able to load appropriate blocks to focus items ' + //
+    'with shifts', function(done) {
         var options = {
             blockSize : 2,
             itemLen : 50,

@@ -173,6 +173,20 @@ module.exports = React.createClass({
             }
         });
         that._deferredRendering.resolve(block);
+        that._updateScrollbarPosition();
+
+    },
+    _updateScrollbarPosition : function() {
+        var that = this;
+        var itemsNumber = that._scroller.getItemsNumber();
+        var index = that._scroller.getFirstItemIndex();
+        var progress = itemsNumber ? (index / itemsNumber) : 0;
+        var scrollbar = that.refs.scrollbar.getDOMNode();
+        var slider = that.refs.slider.getDOMNode();
+        var sliderHeight = slider.offsetHeight;
+        var scrollbarHeight = scrollbar.offsetHeight;
+        var position = Math.round((scrollbarHeight - sliderHeight) * progress);
+        slider.style.top = position + 'px';
     },
     render : function() {
         var that = this;
@@ -230,7 +244,34 @@ module.exports = React.createClass({
                 margin : 0,
                 padding : 0
             }
-        }, items)))));
+        }, items))), React.DOM.div({
+            key : 'scrollbar',
+            ref : 'scrollbar',
+            className : 'scrollbar',
+            style : {
+                position : 'absolute',
+                top : 0,
+                bottom : 0,
+                right : 0,
+                margin : 0,
+                padding : 0,
+                maxWidth : '10px'
+            }
+        }, React.DOM.div({
+            key : 'slider',
+            ref : 'slider',
+            className : 'slider',
+            style : {
+                position : 'absolute',
+                top : 0,
+                bottom : 0,
+                right : 0,
+                margin : '3px',
+                padding : 0,
+                minHeight : '10px',
+                minWidth : '3px'
+            }
+        }))));
     },
 
 });
