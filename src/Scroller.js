@@ -166,14 +166,7 @@ module.exports = Mosaic.Class.extend(Mosaic.Events.prototype, {
             count = Math.ceil(count / blockSize) * blockSize;
             count = Math.max(0, Math.min(count, itemsNumber - index));
 
-            var load = //
-            !that._block || //
-            that._block.getIndex() !== index || //
-            that._block.getSize() !== count;
-
-            if (!load)
-                return that._block;
-            return that.options.items({
+            return that.options.loadItems({
                 index : index,
                 length : count
             });

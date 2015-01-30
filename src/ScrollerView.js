@@ -28,6 +28,12 @@ module.exports = React.createClass({
 
     componentWillMount : function() {
         var that = this;
+        that._renderParams = {
+            index : 0,
+            length : 0,
+            items : []
+        };
+        this._updatePosition = true;
         that.addResizeListener(that._onResize);
         that._tracker = new ScrollBarTracker();
         that._scroller = new Scroller(_.extend({
@@ -44,8 +50,7 @@ module.exports = React.createClass({
             itemsNumber : function() {
                 return that.props.getItemsNumber();
             },
-            items : function(params) {
-                console.log('* load items');
+            loadItems : function(params) {
                 return that._startItemsRendering(params);
             }
         }));
@@ -72,7 +77,6 @@ module.exports = React.createClass({
         this.removeResizeListener(this._onResize);
     },
     componentDidMount : function() {
-        console.log('componentDidMount');
         var that = this;
         that._scroller.setDelta(0);
         setTimeout(function() {
@@ -80,11 +84,9 @@ module.exports = React.createClass({
         }, 1);
     },
     componentWillReceiveProps : function(props) {
-        console.log('componentWillReceiveProps');
         this._updatePosition = true;
     },
     componentDidUpdate : function() {
-        console.log('componentDidUpdate');
         if (this._updatePosition) {
             this._updatePosition = false;
             this._scroller.focusItem(this.props.index || 0);
@@ -99,21 +101,9 @@ module.exports = React.createClass({
         this._updateScroller();
     },
     getInitialState : function() {
-        return this._newState();
-    },
-    _newState : function() {
-        var result = _.extend({
-            index : 0,
-            length : 0,
-            items : [],
-        }, this.state);
-        _.each(arguments, function(options) {
-            result = _.extend(result, options);
-        });
-        return result;
+        return {};
     },
     _updateScroller : function() {
-        console.log('_updateScroller');
         var container = this.getDOMNode();
         var scroller = this.refs.scroller.getDOMNode();
         this._tracker.setPosition(scroller.scrollTop);
@@ -123,19 +113,24 @@ module.exports = React.createClass({
         placeholder.style.height = placeholderLen + 'px';
     },
     _startItemsRendering : function(params) {
-        console.log('_startItemsRendering');
         var that = this;
-        params = _.extend({}, that.state, params);
+        that._renderParams = _.extend(that._renderParams, params);
         return Mosaic.P.then(function() {
-            return that.props.renderItems(params);
+            return that.props.renderItems(that._renderParams);
         }).then(function(items) {
-            var deferred = Mosaic.P.defer();
-            that._itemsRenderingDeferred = deferred;
-            that.setState(that._newState(params, {
-                items : items
-            }));
-            return deferred.promise;
+            that._renderParams.items = items;
+            if (!that._deferredRendering) {
+                that._deferredRendering = Mosaic.P.defer();
+                that._deferredRendering.promise.then(function() {
+                    delete that._deferredRendering;
+                })
+                that._updateState();
+            }
+            return that._deferredRendering.promise;
         });
+    },
+    _updateState : function() {
+        this.setState({});
     },
     _getScrollerWidth : function() {
         if (this._scrollerWidth === undefined) {
@@ -150,7 +145,6 @@ module.exports = React.createClass({
     },
     _finishItemsRendering : function() {
         var that = this;
-        console.log('_finishItemsRendering');
 
         var container = that.getDOMNode();
         var scrollerWidth = that._getScrollerWidth();
@@ -158,18 +152,14 @@ module.exports = React.createClass({
         scroller.style.height = container.offsetHeight + 'px';
         scroller.style.marginRight = '-' + scrollerWidth + 'px';
 
-        var deferred = that._itemsRenderingDeferred;
-        if (!deferred)
+        if (!that._deferredRendering)
             return;
-        delete that._itemsRenderingDeferred;
 
-        var state = that.state;
-        var items = state.items;
         var itemsElm = that.refs.items.getDOMNode();
         var children = itemsElm.childNodes;
         var block = new ScrollerBlock({
             getIndex : function() {
-                return state.index;
+                return that._renderParams.index;
             },
             getSize : function() {
                 return children.length;
@@ -182,11 +172,11 @@ module.exports = React.createClass({
                 return elm.offsetHeight;
             }
         });
-        deferred.resolve(block);
+        that._deferredRendering.resolve(block);
     },
     render : function() {
         var that = this;
-        var items = that.state.items || [];
+        var items = that._renderParams.items;
         var style = _.extend({}, that.props.style, {
             overflow : 'hidden'
         });
@@ -197,19 +187,37 @@ module.exports = React.createClass({
             style : style,
             onScroll : that._onScroll
         }, React.DOM.div({
+            key : 'wrapper',
+            className : 'wrapper',
+            style : {
+                position : 'absolute',
+                top : 0,
+                bottom : 0,
+                left : 0,
+                right : 0,
+                margin : 0,
+                padding : 0
+            }
+        }, React.DOM.div({
+            key : 'scroller',
             ref : 'scroller',
             style : {
                 overflowY : 'scroll',
                 overflowX : 'hidden',
-                position : 'relative'
+                position : 'relative',
+                margin : 0,
+                padding : 0
             }
         }, React.DOM.div({
+            key : 'placeholder',
             ref : 'placeholder',
             style : {
                 position : 'relative',
                 height : placeholderLen + 'px',
                 overflow : 'hidden',
-                paddingRight : '3px'
+                paddingRight : '3px',
+                margin : 0,
+                padding : 0
             }
         }, React.DOM.div({
             ref : 'items',
@@ -218,9 +226,11 @@ module.exports = React.createClass({
                 left : '0px',
                 right : '0px',
                 top : '0px',
-                bottom : 'auto'
+                bottom : 'auto',
+                margin : 0,
+                padding : 0
             }
-        }, items))));
+        }, items)))));
     },
 
 });

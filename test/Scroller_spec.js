@@ -15,7 +15,7 @@ describe('Scroller', function() {
                 return array.length;
             }
         }, options, {
-            items : function(params) {
+            loadItems : function(params) {
                 return new ScrollerBlock({
                     getIndex : function() {
                         return params.index;
