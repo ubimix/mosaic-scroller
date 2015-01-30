@@ -1,5 +1,5 @@
 /*!
- * mosaic-scroller v0.0.8 | License: MIT 
+ * mosaic-scroller v0.0.9 | License: MIT 
  * 
  */
 (function webpackUniversalModuleDefinition(root, factory) {
