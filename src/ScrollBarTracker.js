@@ -10,7 +10,7 @@ module.exports = Mosaic.Class.extend(Mosaic.Events.prototype, {
     },
 
     getLength : function() {
-        return this.options.length || 100000;
+        return this.options.length || 1000000;
     },
 
     getPosition : function() {
@@ -44,7 +44,7 @@ module.exports = Mosaic.Class.extend(Mosaic.Events.prototype, {
     getThreshold : function() {
         if (!this.options.threshold) {
             var length = this.getLength();
-            this.options.threshold = Math.max(length / 4, 50);
+            this.options.threshold = Math.max(length / 10, 30);
         }
         return this.options.threshold;
     },

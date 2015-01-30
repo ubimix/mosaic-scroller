@@ -210,7 +210,8 @@ module.exports = React.createClass({
                 left : 0,
                 right : 0,
                 margin : 0,
-                padding : 0
+                padding : 0,
+                overflow: 'hidden'
             }
         }, React.DOM.div({
             key : 'scroller',
